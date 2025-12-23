@@ -1,6 +1,6 @@
 # GRDM 結合試験の機械化について
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/RCOSDP/RDM-e2e-test-nb/HEAD)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/chiku-samugari/RDM-e2e-test-nb/working/binderhub-support)
 
 ## 概要
 
