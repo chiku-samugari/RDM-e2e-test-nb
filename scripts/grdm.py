@@ -108,19 +108,18 @@ async def login(page, idp_name, idp_username, idp_password, transition_timeout=3
 
 async def _login_idp_pw(page, idp_name, idp_username, idp_password, transition_timeout=30000):
     try:
-        login_proc = _login_dispatcher[idp_name]
+        login_proc = _login_handlers[idp_name]
         await login_proc(page, idp_username, idp_password, transition_timeout)
     except KeyError:
         raise KeyError(f"Login process for IdP: {idp_name} is not yet implemented.");
 
 async def _login_grdm_idp_pw(page, idp_username, idp_password, transition_timeout):
-    # アカウント入力欄が編集可能になったことを確認
-    await expect_idp_login(page, 'GakuNin RDM IdP', timeout=transition_timeout)
-
     # Shibboleth Login Page
     login_page_locators = _get_login_page_locators('GakuNin RDM IdP')
     username_fields = await page.locator(login_page_locators['username']).count()
     if username_fields > 0:
+        # アカウント入力欄が編集可能になったことを確認
+        await expect_idp_login(page, 'GakuNin RDM IdP', timeout=transition_timeout)
         # ユーザー名入力を求められた
         password_fields = await page.locator('#password').count()
         submit_buttons = await page.locator('//button[@type = "submit"]').count()
@@ -165,10 +164,41 @@ async def _login_orthros_pw(page, idp_username, idp_password, transition_timeout
     await page.locator('#password').fill(idp_password)
     await page.locator('#next').click()
 
-_login_dispatcher = {
+def _make_default_login_handler(idp_name,):
+    async def _default_login_handler(page, idp_username, idp_password, transition_timeout):
+        login_page_locators = _get_login_page_locators(idp_name)
+
+        username_fields = await page.locator(login_page_locators['username']).count()
+        if username_fields > 0:
+            # アカウント入力欄が編集可能になったことを確認
+            await expect_idp_login(page, 'GakuNin RDM IdP', timeout=transition_timeout)
+            # ユーザー名入力を求められた
+            password_fields = await page.locator(login_page_locators['password']).count()
+            submit_buttons = await page.locator(login_page_locators['submit']).count()
+            assert username_fields == 1 and password_fields == 1 and submit_buttons == 1, (username_fields, password_fields, submit_buttons)
+            # メールアドレスとパスワードを入力
+            await page.locator(login_page_locators['username']).fill(idp_username)
+            await page.locator(login_page_locators['password']).fill(idp_password)
+        
+            # サインインボタンが押下可能であることを確認
+            await expect(page.locator(login_page_locators['submit'])).to_be_enabled(timeout=transition_timeout)
+            # サインインボタンをクリック
+            await page.locator(login_page_locators['submit']).click()
+
+        await expect(page.locator('#consentOnce')).to_be_enabled(timeout=transition_timeout)
+        await page.locator('#consentOnce').click()
+
+        await expect(page.locator('#continue')).to_be_enabled()
+        await page.locator('#continue').click()
+    return _default_login_handler
+
+_login_handlers = {
     'GakuNin RDM IdP': _login_grdm_idp_pw,
     'Orthros': _login_orthros_pw,
 }
+
+def get_login_handler(idp_name):
+    _login_handlers.get(idp_name, _default_login_handler)
 
 async def expect_dashboard(page, transition_timeout=30000, retries=3):
     # 429 Too many requestsで表示できない場合があるので、複数回リロードする
